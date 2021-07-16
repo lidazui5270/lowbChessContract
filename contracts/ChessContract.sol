@@ -11,11 +11,12 @@ contract ChessContract {
     address public owner;
 
     /* Inverse basis point. */
-    uint public constant INVERSE_BASIS_POINT = 10000;
-    uint public fee;
+    uint private constant INVERSE_BASIS_POINT = 10000;
+    uint private fee;
+    /* 自增GameId */
+    uint private curGameId = 100;
 
     struct ChessGame {
-        bool isUsed;
         bool isPlaying;
         address redPlayer;
         address blckPlayer;
@@ -32,6 +33,11 @@ contract ChessContract {
         lowbTokenAddress = lowbToken_;
         owner = msg.sender;
         fee = 250;
+    }
+
+    modifier onlyOwner{
+        require(msg.sender == owner, "You are not the owner");
+        _;
     }
 
     function deposit(uint amount) public {
@@ -56,29 +62,31 @@ contract ChessContract {
         return actual_amount;
     }
 
-    function createRoom(uint value_) public {
-        require(!GamePlayers[msg.sender].isUsed, "you are in another room");
-        ChessGame memory game = ChessGame(true, true, msg.sender, address(0), value_);
-        GamePlayers[msg.sender] = game;
-        pendingWithdrawals[msg.sender] -= value_;
+    function startPlayGame(adress redPlayer, adress blackPlayer, uint value_) public onlyOwner {
+        require(!GamePlayers[redPlayer].isUsed, "redPlayer in another room");
+        require(!GamePlayers[blackPlayer].isUsed, "blackPlayer in another room");
+        require(value_ <= pendingWithdrawals[redPlayer], "redPlayer value_ larger than that pending to withdraw");  
+        require(value_ <= pendingWithdrawals[blackPlayer], "redPlayer value_ larger than that pending to withdraw");  
+        pendingWithdrawals[redPlayer] -= value_;
+        pendingWithdrawals[blackPlayer] -= value_;
+        ChessGame storage game = ChessGame(true, redPlayer, blackPlayer, value_ * 2);
+        GamePlayers[redPlayer] = game;
+        GamePlayers[blackPlayer] = game;
+        curGameId++;
+        playingChessGame[curGameId] = game;
     }
 
-    function enterRoom(uint gameId, uint value_) public {
-        require(!GamePlayers[msg.sender].isUsed, "you are in another room!");
-        require(playingChessGame[gameId].isUsed, "the room is not exist!");
-        ChessGame memory game = playingChessGame[gameId];
-        game.blckPlayer = msg.sender;
-        pendingWithdrawals[msg.sender] -= value_;
-        game.value += value_;
-    }
 
-    function gameOver(uint gameId, uint gameResult) public {
-        require(msg.sender == owner, "Only owner can gameOver!");
+    function gameOver(uint gameId, uint gameResult) public onlyOwner {
         ChessGame memory game = playingChessGame[gameId];
         uint value = game.value;
         uint deal = _makeDeal(value);
         uint realValue = value - deal;
-        pendingWithdrawals[game.blckPlayer] += realValue;
+        if (gameResult == 12) {
+            pendingWithdrawals[game.redPlayer] += realValue;
+        } else if (gameResult == 22) {
+            pendingWithdrawals[game.blckPlayer] += realValue;
+        }
         game.isPlaying = false;
         game.value = 0;
     }
