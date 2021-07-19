@@ -94,6 +94,7 @@ contract ChessContract {
         } else if (gameResult == 22) {
             pendingWithdrawals[game.blckPlayer] += realValue;
         }
+        pendingWithdrawals[owner] += deal;
         emit GameOver(gameId, value, game.redPlayer, game.blckPlayer, gameResult);
         game.isPlaying = false;
         game.value = 0;
