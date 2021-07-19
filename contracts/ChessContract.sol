@@ -28,6 +28,9 @@ contract ChessContract {
     mapping (uint => ChessGame) public playingChessGame;
     mapping (address => ChessGame) public GamePlayers;
 
+    event GameStart(uint indexed gameId, uint value, address redAddress, address blackAddress);
+    event GameOver(uint indexed gameId, uint value, address redAddress, address blackAddress, uint gameResult);
+
 
     constructor(address lowbToken_) {
         lowbTokenAddress = lowbToken_;
@@ -62,21 +65,25 @@ contract ChessContract {
         return actual_amount;
     }
 
-    function startPlayGame(adress redPlayer, adress blackPlayer, uint value_) public onlyOwner {
-        require(!GamePlayers[redPlayer].isUsed, "redPlayer in another room");
-        require(!GamePlayers[blackPlayer].isUsed, "blackPlayer in another room");
+    /* 开始游戏 */
+    function startPlayGame(address redPlayer, address blackPlayer, uint value_) public onlyOwner returns(uint) {
+        require(!GamePlayers[redPlayer].isPlaying, "redPlayer in another room");
+        require(!GamePlayers[blackPlayer].isPlaying, "blackPlayer in another room");
         require(value_ <= pendingWithdrawals[redPlayer], "redPlayer value_ larger than that pending to withdraw");  
         require(value_ <= pendingWithdrawals[blackPlayer], "redPlayer value_ larger than that pending to withdraw");  
         pendingWithdrawals[redPlayer] -= value_;
         pendingWithdrawals[blackPlayer] -= value_;
-        ChessGame storage game = ChessGame(true, redPlayer, blackPlayer, value_ * 2);
+        ChessGame memory game = ChessGame(true, redPlayer, blackPlayer, value_ * 2);
         GamePlayers[redPlayer] = game;
         GamePlayers[blackPlayer] = game;
         curGameId++;
         playingChessGame[curGameId] = game;
+        emit GameStart(curGameId, value_, redPlayer, blackPlayer);
+        return curGameId;
     }
 
 
+    /* 结束游戏 */
     function gameOver(uint gameId, uint gameResult) public onlyOwner {
         ChessGame memory game = playingChessGame[gameId];
         uint value = game.value;
@@ -87,14 +94,14 @@ contract ChessContract {
         } else if (gameResult == 22) {
             pendingWithdrawals[game.blckPlayer] += realValue;
         }
+        emit GameOver(gameId, value, game.redPlayer, game.blckPlayer, gameResult);
         game.isPlaying = false;
         game.value = 0;
     }
 
 
 
-    function pullFunds() public {
-        require(msg.sender == owner, "Only owner can pull the funds!");
+    function pullFunds() public onlyOwner {
         IERC20 lowb = IERC20(lowbTokenAddress);
         lowb.transfer(msg.sender, pendingWithdrawals[address(this)]);
         pendingWithdrawals[address(this)] = 0;
