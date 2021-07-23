@@ -23,9 +23,7 @@
  //
  const fs = require('fs');
  const mnemonic = fs.readFileSync(".secret").toString().trim();
- console.log("mnemonic : " + mnemonic)
  const BSCSCANAPIKEY = fs.readFileSync(".apikey").toString();
- console.log("BSCSCANAPIKEY : " + BSCSCANAPIKEY)
  
  module.exports = {
    /**
