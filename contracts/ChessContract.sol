@@ -18,18 +18,18 @@ contract ChessContract {
     uint private curGameId = 100;
 
     struct ChessGame {
-        bool isPlaying = false;
+        bool isPlaying;
         uint gameId;
         address redPlayer;
-        address blckPlayer;
+        address blackPlayer;
         uint value;
         OneChess oneChess;
     }
 
     struct PenddingGame {
-        bool exist = false;
+        bool exist;
         address redPlayer;
-        address blckPlayer;
+        address blackPlayer;
     }
 
     /** 1w,3w,5w 棋局 */
@@ -42,8 +42,12 @@ contract ChessContract {
     mapping (uint => ChessGame) public playingChessGame;
     mapping (address => ChessGame) public GamePlayers;
 
-    event GameStart(uint indexed gameId, uint value, address redAddress, address blackAddress);
-    event GameOver(uint indexed gameId, uint value, address redAddress, address blackAddress, uint gameResult);
+    ChessGame private curChessGame;
+    OneChess private curOneChess;
+
+    event GameStart(uint indexed gameId, address redAddress, address blackAddress, uint value);
+    event GameChange(uint indexed gameId, address indexed redAddress, address indexed blackAddress, bool changeSuccess, uint eatPieceId);
+    event GameOver(uint indexed gameId, address indexed redAddress, address indexed blackAddress, address winner, bool gameOver, bool changeSuccess, uint eatPieceId);
 
 
     constructor(address lowbToken_) {
@@ -53,7 +57,7 @@ contract ChessContract {
     }
 
     modifier onlyOwner{
-        require(msg.sender == owner, "You are not the owner");
+        require(tx.origin == owner, "You are not the owner");
         _;
     }
 
@@ -80,87 +84,93 @@ contract ChessContract {
     }
 
     /* 开始游戏 */
-    function startPlayGame(uint value_) public onlyOwner returns(uint) {
+    function startPlayGame(uint value_) public returns(uint) {
         require(!GamePlayers[msg.sender].isPlaying, "player in another room");
         require(value_ <= pendingWithdrawals[msg.sender], "player value_ larger than that pending to withdraw");  
+        require((value_ == 10000) || (value_ == 30000) || (value_ == 50000), "invalid value_");
         pendingWithdrawals[msg.sender] -= value_;
         if (value_ == 10000) {
             if (penddingChess10K.exist) {
-                penddingChess10K.blckPlayer = msg.sender;
+                penddingChess10K.blackPlayer = msg.sender;
                 curGameId++;
-                OneChess memory oneChess = OneChess(penddingChess30K.redPlayer, penddingChess30K.blackPlayer);
-                ChessGame memory game = ChessGame(true, curGameId, penddingChess10K.redPlayer, penddingChess10K.blackPlayer, value_ * 2, oneChess);
-                GamePlayers[penddingChess10K.redPlayer] = game;
-                GamePlayers[penddingChess10K.blackPlayer] = game;
+                curOneChess = new OneChess(penddingChess30K.redPlayer, penddingChess30K.blackPlayer);
+                curChessGame = ChessGame(true, curGameId, penddingChess10K.redPlayer, penddingChess10K.blackPlayer, value_ * 2, curOneChess);
+                GamePlayers[penddingChess10K.redPlayer] = curChessGame;
+                GamePlayers[penddingChess10K.blackPlayer] = curChessGame;
                 penddingChess10K.exist = false;
-                playingChessGame[curGameId] = game;
+                playingChessGame[curGameId] = curChessGame;
+                emit GameStart(curGameId, penddingChess10K.redPlayer, penddingChess10K.blackPlayer, value_ * 2);
             } else {
-                penddingChess10K = PenddingGame(true, msg.sender, 0);
+                penddingChess10K = PenddingGame(true, msg.sender, address(0));
             }
         } else if (value_ == 30000) {
             if (penddingChess30K.exist) {
-                penddingChess30K.blckPlayer = msg.sender;
+                penddingChess30K.blackPlayer = msg.sender;
                 curGameId++;
-                OneChess memory oneChess = OneChess(penddingChess30K.redPlayer, penddingChess30K.blackPlayer);
-                ChessGame memory game = ChessGame(true, curGameId, penddingChess30K.redPlayer, penddingChess30K.blackPlayer, value_ * 2, oneChess);
-                GamePlayers[penddingChess30K.redPlayer] = game;
-                GamePlayers[penddingChess30K.blackPlayer] = game;
+                curOneChess = new OneChess(penddingChess30K.redPlayer, penddingChess30K.blackPlayer);
+                curChessGame = ChessGame(true, curGameId, penddingChess30K.redPlayer, penddingChess30K.blackPlayer, value_ * 2, curOneChess);
+                GamePlayers[penddingChess30K.redPlayer] = curChessGame;
+                GamePlayers[penddingChess30K.blackPlayer] = curChessGame;
                 penddingChess30K.exist = false;
-                playingChessGame[curGameId] = game;
+                playingChessGame[curGameId] = curChessGame;
+                emit GameStart(curGameId, penddingChess30K.redPlayer, penddingChess30K.blackPlayer, value_ * 2);
             } else {
-                penddingChess30K = PenddingGame(true, msg.sender, 0);
+                penddingChess30K = PenddingGame(true, msg.sender, address(0));
             }
 
         } else if (value_ == 50000) {
             if (penddingChess50K.exist) {
-                penddingChess50K.blckPlayer = msg.sender;
+                penddingChess50K.blackPlayer = msg.sender;
                 curGameId++;
-                OneChess memory oneChess = OneChess(penddingChess30K.redPlayer, penddingChess30K.blackPlayer);
-                ChessGame memory game = ChessGame(true, curGameId, penddingChess50K.redPlayer, penddingChess50K.blackPlayer, value_ * 2, oneChess);
-                GamePlayers[penddingChess10K.redPlayer] = game;
-                GamePlayers[penddingChess10K.blackPlayer] = game;
+                curOneChess = new OneChess(penddingChess30K.redPlayer, penddingChess30K.blackPlayer);
+                curChessGame = ChessGame(true, curGameId, penddingChess50K.redPlayer, penddingChess50K.blackPlayer, value_ * 2, curOneChess);
+                GamePlayers[penddingChess10K.redPlayer] = curChessGame;
+                GamePlayers[penddingChess10K.blackPlayer] = curChessGame;
                 penddingChess10K.exist = false;
-                playingChessGame[curGameId] = game;
+                playingChessGame[curGameId] = curChessGame;
+                emit GameStart(curGameId, penddingChess50K.redPlayer, penddingChess50K.blackPlayer, value_ * 2);
             } else {
-                penddingChess10K = PenddingGame(true, msg.sender, 0);
+                penddingChess10K = PenddingGame(true, msg.sender, address(0));
             }
 
-        } else {
-            throw;
-        }
-        emit GameStart(curGameId, value_, redPlayer, blackPlayer);
+        } 
         return curGameId;
     }
 
-    function chageGame(uint pieceId,uint x, uint y) {
-        require(GamePlayers[msg.sender].isPlaying, "player is not in gaming");
+    function chageGame(uint pieceId,uint x, uint y) public {
+        require(GamePlayers[tx.origin].isPlaying, "player is not in gaming");
         bool chageSuccess;
         bool gameOver;
-        string errMsg;
+        string memory errMsg;
         address winner;
-        (chageSuccess, gameOver, errMsg, winner) = GamePlayers[msg.sender].oneChess.chagePiece(pieceId, x, y);
+        uint eatPieceId;
+        (chageSuccess, gameOver, errMsg, winner, eatPieceId) = GamePlayers[tx.origin].oneChess.chagePiece(pieceId, x, y);
+        uint gameId = GamePlayers[tx.origin].gameId;
+        address redPlayer = GamePlayers[tx.origin].redPlayer;
+        address blackPlayer = GamePlayers[tx.origin].blackPlayer;
         require(chageSuccess, errMsg);
         if (gameOver) {
-            gameOver(gameId,winner);
+            gameOverConfirm(gameId, winner);
+            emit GameOver(gameId, redPlayer, blackPlayer,winner, gameOver, chageSuccess, eatPieceId);
+        } else {
+            emit GameChange(gameId, redPlayer, blackPlayer, chageSuccess, eatPieceId);
         }
     }
 
 
     /* 结束游戏 */
-    function gameOver(uint gameId, uint gameResult) public onlyOwner {
+    function gameOverConfirm(uint gameId, address winner) public {
         ChessGame memory game = playingChessGame[gameId];
+        require((tx.origin == owner) || (tx.origin == game.redPlayer) || (tx.origin == game.blackPlayer), "You can not over the game");
         uint value = game.value;
         uint deal = _makeDeal(value);
         uint realValue = value - deal;
-        if (gameResult == 12) {
-            pendingWithdrawals[game.redPlayer] += realValue;
-        } else if (gameResult == 22) {
-            pendingWithdrawals[game.blckPlayer] += realValue;
-        }
+        pendingWithdrawals[winner] += realValue;
         pendingWithdrawals[owner] += deal;
-        emit GameOver(gameId, value, game.redPlayer, game.blckPlayer, gameResult);
-        game.isPlaying = false;
-        game.value = 0;
+        playingChessGame[gameId].isPlaying = false;
+        GamePlayers[game.redPlayer].isPlaying = false;
+        GamePlayers[game.blackPlayer].isPlaying = false;
+        playingChessGame[gameId].value = 0;
     }
 
 
